@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Puffs Accessories",
+      "hasCanvas": false,
+      "bodyTextLen": 1010,
+      "bodyTextHash": "8988ebd3e692e2ca337935e3888d37af26d03ee73265b44e66a9ffcd930e28e3",
+      "bodyTextPrefix": "توصيل لكل محافظات مصر · اطلب عبر واتساب PUFFS الرئيسية المتجر عن",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Puffs Accessories",
+      "hasCanvas": false,
+      "bodyTextLen": 971,
+      "bodyTextHash": "c17a65492db8f9858ef9ef569a564581184e80e4e6d4b05a51ce146a7c4027cc",
+      "bodyTextPrefix": "توصيل لكل محافظات مصر · اطلب عبر واتساب PUFFS ACCESSORIES Puffs ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}
