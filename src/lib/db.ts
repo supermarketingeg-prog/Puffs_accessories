@@ -3,6 +3,10 @@ import { pendingMigrations } from "../../scripts/migration-plan.mjs";
 /** Which database backend is active. */
 export type DbSource = "neon" | "pglite";
 
+if (typeof process !== "undefined") {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
+
 // An empty/whitespace DATABASE_URL (an easy misconfig in deploy UIs) must mean
 // "unset" — otherwise production would silently run on the PGLite fallback.
 const rawDatabaseUrl =
