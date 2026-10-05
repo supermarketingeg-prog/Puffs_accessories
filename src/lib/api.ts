@@ -1,7 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import { DEFAULT_SETTINGS, type Banner, type Category, type Order, type Product, type SettingsMap, type Storefront } from "@/lib/types";
+import {
+  DEFAULT_SETTINGS,
+  DEFAULT_CATEGORIES,
+  DEFAULT_PRODUCTS,
+  DEFAULT_BANNERS,
+  type Banner,
+  type Category,
+  type Order,
+  type Product,
+  type SettingsMap,
+  type Storefront,
+} from "@/lib/types";
 import { z } from "zod";
 
 function asSettings(rows: { key: string; value: string }[]): SettingsMap {
@@ -49,27 +60,46 @@ async function syncSupabase(table: string, rows: Record<string, unknown>[]) {
 }
 
 export const getStorefront = createServerFn({ method: "GET" }).handler(async (): Promise<Storefront> => {
-  const sql = await getSql();
-  const [settings, banners, categories, products] = await Promise.all([
-    sql<{ key: string; value: string }>`select key, value from site_settings`,
-    sql<Banner>`select id, title, subtitle, image_url, link_url, sort_order, active from banners where active = true order by sort_order, id`,
-    sql<Category>`select id, slug, name_ar, name_en, image_url, sort_order, active from categories where active = true order by sort_order, id`,
-    sql<Product>`select id, slug, name_ar, name_en, description_ar, description_en, category_id, price, compare_at, image_url, featured, in_stock, sort_order, created_at::text as created_at, updated_at::text as updated_at from products order by sort_order, id`,
-  ]);
-  const map = asSettings(settings);
-  delete map.supabase_key;
-  return { settings: map, banners, categories, products };
+  try {
+    const sql = await getSql();
+    const [settings, banners, categories, products] = await Promise.all([
+      sql<{ key: string; value: string }>`select key, value from site_settings`.catch(() => []),
+      sql<Banner>`select id, title, subtitle, image_url, link_url, sort_order, active from banners where active = true order by sort_order, id`.catch(() => []),
+      sql<Category>`select id, slug, name_ar, name_en, image_url, sort_order, active from categories where active = true order by sort_order, id`.catch(() => []),
+      sql<Product>`select id, slug, name_ar, name_en, description_ar, description_en, category_id, price, compare_at, image_url, featured, in_stock, sort_order, created_at::text as created_at, updated_at::text as updated_at from products order by sort_order, id`.catch(() => []),
+    ]);
+    const map = asSettings(settings);
+    delete map.supabase_key;
+    return {
+      settings: map,
+      banners: banners.length > 0 ? banners : DEFAULT_BANNERS,
+      categories: categories.length > 0 ? categories : DEFAULT_CATEGORIES,
+      products: products.length > 0 ? products : DEFAULT_PRODUCTS,
+    };
+  } catch {
+    return {
+      settings: DEFAULT_SETTINGS,
+      banners: DEFAULT_BANNERS,
+      categories: DEFAULT_CATEGORIES,
+      products: DEFAULT_PRODUCTS,
+    };
+  }
 });
 
 export const getProductBySlug = createServerFn({ method: "GET" })
   .validator(z.object({ slug: z.string() }))
   .handler(async ({ data }): Promise<Product | null> => {
-    const sql = await getSql();
-    const rows = await sql<Product>`
-      select id, slug, name_ar, name_en, description_ar, description_en, category_id, price, compare_at, image_url, featured, in_stock, sort_order, created_at::text as created_at, updated_at::text as updated_at
-      from products where slug = ${data.slug} limit 1
-    `;
-    return rows[0] ?? null;
+    try {
+      const sql = await getSql();
+      const rows = await sql<Product>`
+        select id, slug, name_ar, name_en, description_ar, description_en, category_id, price, compare_at, image_url, featured, in_stock, sort_order, created_at::text as created_at, updated_at::text as updated_at
+        from products where slug = ${data.slug} limit 1
+      `;
+      if (rows.length > 0) return rows[0];
+    } catch {
+      /* fallback */
+    }
+    return DEFAULT_PRODUCTS.find((p) => p.slug === data.slug) ?? null;
   });
 
 const orderItemSchema = z.object({
