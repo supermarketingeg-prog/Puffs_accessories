@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { ImageField } from "@/components/image-field";
@@ -104,6 +104,7 @@ function AdminGate() {
 
 function AdminPage({ onLogout }: { onLogout?: () => void }) {
   const qc = useQueryClient();
+  const router = useRouter();
   const q = useQuery({ queryKey: ["admin"], queryFn: () => adminGetAll() });
   const [tab, setTab] = useState<Tab>("products");
 
@@ -117,6 +118,7 @@ function AdminPage({ onLogout }: { onLogout?: () => void }) {
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["admin"] });
     void qc.invalidateQueries({ queryKey: ["storefront"] });
+    void router.invalidate();
   };
   return (
     <div className="min-h-svh bg-bg">

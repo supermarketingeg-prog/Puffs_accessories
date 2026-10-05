@@ -37,23 +37,51 @@ async function requireAdmin(userId: string) {
 async function syncSupabase(table: string, rows: Record<string, unknown>[]) {
   if (rows.length === 0) return;
   try {
-    const sql = await getSql();
-    const cfg = await sql<{ key: string; value: string }>`
-      select key, value from site_settings where key in ('supabase_url','supabase_key')
-    `;
-    const url = cfg.find((r) => r.key === "supabase_url")?.value?.replace(/\/$/, "");
-    const key = cfg.find((r) => r.key === "supabase_key")?.value?.trim();
-    if (!url || !key) return;
+    const url = "https://nttdxpsqpyokzqyihmcr.supabase.co";
+    const sql = await getSql().catch(() => null);
+    let key = "";
+    if (sql) {
+      const cfg = await sql<{ key: string; value: string }>`select key, value from site_settings where key = 'supabase_key'`.catch(() => []);
+      key = cfg[0]?.value?.trim() || "";
+    }
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates",
+    };
+    if (key) {
+      headers["apikey"] = key;
+      headers["Authorization"] = `Bearer ${key}`;
+    }
     await fetch(`${url}/rest/v1/${table}`, {
       method: "POST",
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates",
-      },
+      headers,
       body: JSON.stringify(rows),
-    });
+    }).catch(() => {});
+  } catch {
+    /* best-effort mirror */
+  }
+}
+
+async function deleteSupabase(table: string, id: number) {
+  try {
+    const url = "https://nttdxpsqpyokzqyihmcr.supabase.co";
+    const sql = await getSql().catch(() => null);
+    let key = "";
+    if (sql) {
+      const cfg = await sql<{ key: string; value: string }>`select key, value from site_settings where key = 'supabase_key'`.catch(() => []);
+      key = cfg[0]?.value?.trim() || "";
+    }
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (key) {
+      headers["apikey"] = key;
+      headers["Authorization"] = `Bearer ${key}`;
+    }
+    await fetch(`${url}/rest/v1/${table}?id=eq.${id}`, {
+      method: "DELETE",
+      headers,
+    }).catch(() => {});
   } catch {
     /* best-effort mirror */
   }
@@ -233,6 +261,7 @@ export const deleteProduct = createServerFn({ method: "POST" })
     try {
       const sql = await getSql();
       await sql`delete from products where id = ${data.id}`.catch(() => {});
+      await deleteSupabase("products", data.id);
     } catch {
       /* fallback */
     }
@@ -283,6 +312,7 @@ export const deleteBanner = createServerFn({ method: "POST" })
     try {
       const sql = await getSql();
       await sql`delete from banners where id = ${data.id}`.catch(() => {});
+      await deleteSupabase("banners", data.id);
     } catch {
       /* fallback */
     }
