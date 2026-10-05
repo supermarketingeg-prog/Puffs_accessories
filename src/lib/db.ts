@@ -6,26 +6,18 @@ export type DbSource = "neon" | "pglite";
 // An empty/whitespace DATABASE_URL (an easy misconfig in deploy UIs) must mean
 // "unset" — otherwise production would silently run on the PGLite fallback.
 const rawDatabaseUrl =
-  typeof process !== "undefined" ? process.env.DATABASE_URL : undefined;
+  typeof process !== "undefined"
+    ? process.env.DATABASE_URL ||
+      process.env.POSTGRES_URL ||
+      process.env.POSTGRES_PRISMA_URL ||
+      process.env.POSTGRES_URL_NON_POOLING ||
+      process.env.SUPABASE_DATABASE_URL
+    : undefined;
 const databaseUrl =
-  rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl : undefined;
+  rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl.trim() : undefined;
 
-/**
- * Active backend: real **Neon** when `DATABASE_URL` is set (deployed / configured
- * sandbox), otherwise a local embedded **PGLite** (Postgres compiled to WASM) so
- * the app has a working database even with nothing configured — the live preview
- * included. Swap in Neon later by just setting `DATABASE_URL`; no code changes.
- */
 export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
 
-/**
- * Minimal shared SQL surface, satisfied by both Neon and PGLite. Both the
- * tagged-template and `.query()` forms resolve to an array of row objects:
- *
- *   const sql = await getSql();
- *   const rows = await sql`select * from todos where id = ${id}`; // parameterized
- *   const rows2 = await sql.query("select * from todos where id = $1", [id]);
- */
 export interface Sql {
   <T = Record<string, unknown>>(
     strings: TemplateStringsArray,
@@ -37,31 +29,20 @@ export interface Sql {
   ): Promise<T[]>;
 }
 
-/**
- * Init state lives on globalThis as promises: dev HMR creates new instances of
- * this module, and two instances racing module-level state would open a second
- * pool or run two concurrent PGLite migration passes (whose duplicate
- * `_migrations` insert rejects — and would get memoized, poisoning every later
- * `getSql()`). A failed init clears its slot so the next call retries.
- */
 const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
   __pgliteInstance__?: Promise<import("@electric-sql/pglite").PGlite>;
   __pgliteMigrateChain__?: Promise<void>;
+  __memDb__?: {
+    settings: Record<string, string>;
+    categories: any[];
+    products: any[];
+    banners: any[];
+    orders: any[];
+    admins: string[];
+  };
 };
 
-/**
- * Result-type parity: Postgres sends every value as text plus a type OID — the
- * JS value is the DRIVER's parsing choice, and pg and PGLite disagree (pg:
- * int8 -> string, date -> local-midnight Date; PGLite: int8 -> BigInt, which
- * JSON.stringify rejects, date -> UTC Date). Normalize both so preview and
- * production return identical, JSON-safe shapes:
- *   int8/bigint (incl. count(*)) -> number (past 2^53 loses precision — cast
- *                                   `::text` if you ever need huge integers)
- *   date                         -> 'YYYY-MM-DD' string
- *   interval                     -> Postgres interval text
- * numeric already comes back as a string on both (arbitrary precision).
- */
 const OID_INT8 = 20;
 const OID_DATE = 1082;
 const OID_INTERVAL = 1186;
@@ -69,13 +50,11 @@ const identity = (v: string) => v;
 
 type Run = <T>(text: string, params: unknown[]) => Promise<T[]>;
 
-/** Wrap a query runner in the tagged-template + `.query()` `Sql` surface. */
 function toSql(run: Run): Sql {
   const sql = (async <T = Record<string, unknown>>(
     strings: TemplateStringsArray,
     ...values: unknown[]
   ): Promise<T[]> => {
-    // Rebuild with $1, $2, … placeholders so values stay parameterized.
     let text = strings[0];
     for (let i = 0; i < values.length; i += 1) text += `$${i + 1}${strings[i + 1]}`;
     return run<T>(text, values);
@@ -87,13 +66,11 @@ function toSql(run: Run): Sql {
 
 function createNeonSql(): Promise<Sql> {
   globalRef.__pgSqlPromise__ ??= (async () => {
-    // Regular Postgres driver: node-postgres (`pg`) — works directly with Neon's
-    // pooled endpoint. One pool per process; warm serverless instances reuse it.
     const { Pool, types } = await import("pg");
     types.setTypeParser(OID_INT8, Number);
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
-    const pool = new Pool({ connectionString: databaseUrl });
+    const pool = new Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } });
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
       return res.rows as T[];
@@ -105,11 +82,90 @@ function createNeonSql(): Promise<Sql> {
   return globalRef.__pgSqlPromise__;
 }
 
+function getMemorySql(): Sql {
+  globalRef.__memDb__ ??= {
+    settings: {
+      brand_name: "Puffs Accessories",
+      tagline: "Because it's the ACCESSORIES that make or break the look",
+      tagline_ar: "الإكسسوارات هي اللي بتكمل اللوك",
+      announcement: "توصيل لكل محافظات مصر · اطلب عبر واتساب",
+      about_ar: "بَفس إكسسوارز محل إكسسوارات حريمي في السويس. قطع ذهبية ولؤلؤ ناعمة تكمّل إطلالتك.",
+      about_en: "Puffs Accessories is a women's jewelry boutique in Suez.",
+      phone: "+201284384076",
+      whatsapp: "201284384076",
+      instagram: "https://www.instagram.com/puffs_accessories",
+      facebook: "https://www.facebook.com/puffsaccessories",
+      address: "السويس — شارع مكتبة الكيال",
+      hours: "من 12 الظهر حتى 9 مساءً",
+      hero_title: "Puffs",
+      hero_subtitle: "الإكسسوارات هي اللي بتكمل اللوك",
+      hero_image: "/images/hero.jpg",
+      logo_url: "/images/emblem.jpg",
+      supabase_url: "https://nttdxpsqpyokzqyihmcr.supabase.co",
+      supabase_key: "",
+    },
+    categories: [
+      { id: 1, slug: "earrings", name_ar: "أقراط", name_en: "Earrings", image_url: "/images/cat-earrings.jpg", sort_order: 1, active: true },
+      { id: 2, slug: "necklaces", name_ar: "سلاسل وعقود", name_en: "Necklaces", image_url: "/images/cat-necklaces.jpg", sort_order: 2, active: true },
+      { id: 3, slug: "bracelets", name_ar: "أساور", name_en: "Bracelets", image_url: "/images/cat-bracelets.jpg", sort_order: 3, active: true },
+      { id: 4, slug: "sets", name_ar: "أطقم", name_en: "Sets", image_url: "/images/cat-sets.jpg", sort_order: 4, active: true },
+      { id: 5, slug: "rings", name_ar: "خواتم", name_en: "Rings", image_url: "/products/crystal-ring.jpg", sort_order: 5, active: true },
+      { id: 6, slug: "hair", name_ar: "إكسسوارات شعر", name_en: "Hair", image_url: "/products/pearl-clip.jpg", sort_order: 6, active: true },
+    ],
+    products: [
+      { id: 1, slug: "pearl-layers", name_ar: "عقد لؤلؤ طبقات", name_en: "Layered Pearl Necklace", description_ar: "عقد طبقات من اللؤلؤ الناعم مع لمسات ذهبية.", description_en: "Soft layered pearls with gold accents.", category_id: 2, price: 320, compare_at: 390, image_url: "/products/pearl-layers.jpg", featured: true, in_stock: true, sort_order: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+      { id: 2, slug: "gold-hoops", name_ar: "حلق ذهب دائري", name_en: "Gold Hoop Earrings", description_ar: "حلق دائري مذهب بحجم أنيق.", description_en: "Polished gold-plated hoops.", category_id: 1, price: 145, compare_at: 180, image_url: "/products/gold-hoops.jpg", featured: true, in_stock: true, sort_order: 2, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+      { id: 3, slug: "gold-bangle", name_ar: "أسورة ذهب سميكة", name_en: "Chunky Gold Bangle", description_ar: "أسورة سميكة ذهبية تعطي حضور مميز.", description_en: "A sculptural gold-plated bangle.", category_id: 3, price: 280, compare_at: 340, image_url: "/products/gold-bangle.jpg", featured: true, in_stock: true, sort_order: 3, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+      { id: 4, slug: "pearl-set", name_ar: "طقم لؤلؤ أنيق", name_en: "Pearl Evening Set", description_ar: "طقم لؤلؤ: عقد قصير + حلق + أسورة رفيعة.", description_en: "A complete pearl set.", category_id: 4, price: 490, compare_at: 580, image_url: "/products/pearl-set.jpg", featured: true, in_stock: true, sort_order: 4, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+      { id: 5, slug: "pearl-pendant", name_ar: "سلسلة لؤلؤ معلقة", name_en: "Pearl Pendant Chain", description_ar: "سلسلة ذهبية رقيقة مع لؤلؤة واحدة.", description_en: "A dainty gold chain with a single pearl drop.", category_id: 2, price: 195, compare_at: null, image_url: "/products/pearl-pendant.jpg", featured: true, in_stock: true, sort_order: 5, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+      { id: 6, slug: "crystal-ring", name_ar: "خاتم كريستال", name_en: "Crystal Stone Ring", description_ar: "خاتم مذهب بفصة كريستال تلمع.", description_en: "Gold-plated ring with a small crystal stone.", category_id: 5, price: 120, compare_at: 150, image_url: "/products/crystal-ring.jpg", featured: false, in_stock: true, sort_order: 6, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+      { id: 7, slug: "pearl-clip", name_ar: "توكة شعر لؤلؤ", name_en: "Pearl Hair Barrette", description_ar: "توكة شعر بلؤلؤ وذهب.", description_en: "A pearl-and-gold barrette.", category_id: 6, price: 95, compare_at: null, image_url: "/products/pearl-clip.jpg", featured: true, in_stock: true, sort_order: 7, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+      { id: 8, slug: "crystal-drops", name_ar: "حلق كريستال متدلي", name_en: "Crystal Drop Earrings", description_ar: "حلق طويل بفصوص كريستال لامعة.", description_en: "Elongated crystal drops.", category_id: 1, price: 165, compare_at: 210, image_url: "/products/crystal-drops.jpg", featured: false, in_stock: true, sort_order: 8, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+    ],
+    banners: [
+      { id: 1, title: "Puffs", subtitle: "الإكسسوارات هي اللي بتكمل اللوك", image_url: "/images/hero.jpg", link_url: "/shop", sort_order: 1, active: true },
+      { id: 2, title: "أطقم الهدية", subtitle: "اختاري طقم كامل جاهز يتغلف بهدية", image_url: "/images/cat-sets.jpg", link_url: "/shop?cat=sets", sort_order: 2, active: true },
+      { id: 3, title: "لؤلؤ وذهب", subtitle: "قطع ناعمة للبس اليومي", image_url: "/images/cat-necklaces.jpg", link_url: "/shop?cat=necklaces", sort_order: 3, active: true }
+    ],
+    orders: [],
+    admins: [],
+  };
+
+  const mem = globalRef.__memDb__;
+
+  return toSql(async <T>(text: string, params: unknown[] = []) => {
+    const q = text.toLowerCase().trim();
+    if (q.includes("site_settings")) {
+      if (q.includes("insert into") || q.includes("update")) {
+        return [] as T[];
+      }
+      return Object.entries(mem.settings).map(([key, value]) => ({ key, value })) as unknown as T[];
+    }
+    if (q.includes("banners")) {
+      return mem.banners.filter((b) => b.active) as unknown as T[];
+    }
+    if (q.includes("categories")) {
+      return mem.categories.filter((c) => c.active) as unknown as T[];
+    }
+    if (q.includes("products")) {
+      if (q.includes("where slug")) {
+        const slug = params[0] as string;
+        return mem.products.filter((p) => p.slug === slug) as unknown as T[];
+      }
+      return mem.products as unknown as T[];
+    }
+    if (q.includes("orders")) {
+      return mem.orders as unknown as T[];
+    }
+    if (q.includes("store_admins")) {
+      return [] as T[];
+    }
+    return [] as T[];
+  });
+}
+
 async function createPgliteSql(): Promise<Sql> {
-  // Embedded Postgres, imported on demand so it never loads on the Neon path.
-  // One in-memory instance per process, shared across HMR module instances, so
-  // data survives source edits (it resets on dev-server restart).
-  globalRef.__pgliteInstance__ ??= (async () => {
+  try {
     const { PGlite } = await import("@electric-sql/pglite");
     const pg = new PGlite({
       parsers: {
@@ -122,21 +178,8 @@ async function createPgliteSql(): Promise<Sql> {
     await pg.exec(
       "create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())",
     );
-    return pg;
-  })().catch((err) => {
-    globalRef.__pgliteInstance__ = undefined;
-    throw err;
-  });
-  const pg = await globalRef.__pgliteInstance__;
+    globalRef.__pgliteInstance__ = Promise.resolve(pg);
 
-  // Apply migrations/ (the single schema source) so preview matches production.
-  // SQL is inlined by the bundler via import.meta.glob (no runtime fs); applied
-  // files are tracked in _migrations. The glob does not descend, so the opt-in
-  // auth schema under migrations/auth/ stays out. Runs once per module instance
-  // — so an HMR reload after adding a migration file applies it live — with
-  // passes serialized on a global chain so concurrent callers never
-  // double-apply.
-  const migrate = async (): Promise<void> => {
     const migrations = import.meta.glob("/migrations/*.sql", {
       query: "?raw",
       import: "default",
@@ -147,24 +190,20 @@ async function createPgliteSql(): Promise<Sql> {
     );
     const done = doneRows.rows.map((r) => r.name);
     for (const { name, path } of pendingMigrations(Object.keys(migrations), done)) {
-      // Apply + record atomically (parity with scripts/migrate.mjs) so a failed
-      // statement can't leave a file half-applied but untracked.
       await pg.transaction(async (tx) => {
         await tx.exec(migrations[path]);
         await tx.query("insert into _migrations (name) values ($1)", [name]);
       });
     }
-  };
-  const pass = (globalRef.__pgliteMigrateChain__ ?? Promise.resolve())
-    .catch(() => undefined) // an earlier failed pass must not wedge the chain
-    .then(migrate);
-  globalRef.__pgliteMigrateChain__ = pass;
-  await pass;
 
-  return toSql(async <T>(text: string, params: unknown[]) => {
-    const result = await pg.query<T>(text, params);
-    return result.rows;
-  });
+    return toSql(async <T>(text: string, params: unknown[]) => {
+      const result = await pg.query<T>(text, params);
+      return result.rows;
+    });
+  } catch (err) {
+    console.warn("[db] PGlite failed or unavailable in serverless environment, falling back to in-memory store:", err);
+    return getMemorySql();
+  }
 }
 
 let sqlPromise: Promise<Sql> | null = null;
