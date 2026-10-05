@@ -15,10 +15,10 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
       { name: "description", content: "إكسسوارات حريمي في السويس — لؤلؤ وذهب يكمّلوا اللوك." },
-      { name: "theme-color", content: "#ed0870" },
+      { name: "theme-color", content: "#fdfafc" },
     ],
     links: [
-      { rel: "icon", type: "image/jpeg", href: "/brand/puffs-logo.jpg" },
+      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/__grok/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
