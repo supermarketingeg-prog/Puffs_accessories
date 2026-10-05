@@ -38,20 +38,20 @@ async function syncSupabase(table: string, rows: Record<string, unknown>[]) {
   if (rows.length === 0) return;
   try {
     const url = "https://nttdxpsqpyokzqyihmcr.supabase.co";
+    const FALLBACK_KEY = "sb_publishable_HDGesc6vF84n67K3UUWdsQ_8GEeg_Q5";
     const sql = await getSql().catch(() => null);
     let key = "";
     if (sql) {
       const cfg = await sql<{ key: string; value: string }>`select key, value from site_settings where key = 'supabase_key'`.catch(() => []);
       key = cfg[0]?.value?.trim() || "";
     }
+    if (!key) key = FALLBACK_KEY;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Prefer: "resolution=merge-duplicates",
+      apikey: key,
+      Authorization: `Bearer ${key}`,
     };
-    if (key) {
-      headers["apikey"] = key;
-      headers["Authorization"] = `Bearer ${key}`;
-    }
     await fetch(`${url}/rest/v1/${table}`, {
       method: "POST",
       headers,
@@ -65,19 +65,19 @@ async function syncSupabase(table: string, rows: Record<string, unknown>[]) {
 async function deleteSupabase(table: string, id: number) {
   try {
     const url = "https://nttdxpsqpyokzqyihmcr.supabase.co";
+    const FALLBACK_KEY = "sb_publishable_HDGesc6vF84n67K3UUWdsQ_8GEeg_Q5";
     const sql = await getSql().catch(() => null);
     let key = "";
     if (sql) {
       const cfg = await sql<{ key: string; value: string }>`select key, value from site_settings where key = 'supabase_key'`.catch(() => []);
       key = cfg[0]?.value?.trim() || "";
     }
+    if (!key) key = FALLBACK_KEY;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
+      apikey: key,
+      Authorization: `Bearer ${key}`,
     };
-    if (key) {
-      headers["apikey"] = key;
-      headers["Authorization"] = `Bearer ${key}`;
-    }
     await fetch(`${url}/rest/v1/${table}?id=eq.${id}`, {
       method: "DELETE",
       headers,
