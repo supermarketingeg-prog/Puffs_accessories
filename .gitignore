@@ -1,4 +1,9 @@
 node_modules/
+.vercel/
+.grok/
+.tanstack/
+.node_modules.lock
+screenshots/
 .project_id
 .github_repo
 .env

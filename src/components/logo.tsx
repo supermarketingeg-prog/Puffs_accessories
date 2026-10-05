@@ -1,24 +1,19 @@
-import { cn } from "@/lib/utils";
-
 export function Logo({
   className,
   markClassName,
-  light = false,
+  light: _light = false,
 }: {
   className?: string;
   markClassName?: string;
   light?: boolean;
 }) {
   return (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
+    <span className={className}>
       <img
-        src="/images/emblem.jpg"
-        alt=""
-        className={cn("size-9 rounded-full object-cover ring-1 ring-border", markClassName)}
+        src="/brand/puffs-logo.jpg"
+        alt="Puffs Women Accessories"
+        className={markClassName ?? "h-11 w-auto max-w-[132px] object-contain"}
       />
-      <span className={cn("wordmark text-[15px] leading-none", light ? "text-primary-fg" : "text-fg")}>
-        Puffs
-      </span>
     </span>
   );
 }
