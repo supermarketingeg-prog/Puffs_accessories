@@ -62,8 +62,10 @@ async function getSupabaseConfig() {
   // mistyped Vercel SUPABASE_URL from sending requests to a dashboard URL or
   // another project and failing with the opaque "fetch failed" message.
   const url = DEFAULT_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) throw new Error("Supabase غير مُعدّ. أضيفي SUPABASE_SERVICE_ROLE_KEY في إعدادات Vercel.");
+  // Prefer Supabase's current server-only secret key. Keep the legacy variable
+  // as a fallback so existing deployments do not break during migration.
+  const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) throw new Error("Supabase غير مُعدّ. أضيفي SUPABASE_SECRET_KEY في إعدادات Vercel.");
   return { url, key };
 }
 
