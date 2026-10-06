@@ -10,7 +10,11 @@ export function formatPrice(egp: number) {
 }
 
 export function waLink(phone: string, text: string) {
-  const digits = phone.replace(/[^\d]/g, "");
+  let digits = phone.replace(/[^\d]/g, "");
+  // Egyptian mobile numbers are sometimes saved locally (01...) in the dashboard.
+  // wa.me needs the international format without a leading + or 00.
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("0")) digits = `20${digits.slice(1)}`;
   return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
 

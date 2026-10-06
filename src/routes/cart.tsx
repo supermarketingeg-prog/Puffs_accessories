@@ -8,6 +8,13 @@ import { getStorefront, placeOrder } from "@/lib/api";
 import { cartTotal, useCart } from "@/lib/cart";
 import { formatPrice, waLink } from "@/lib/utils";
 
+const EGYPT_GOVERNORATES = [
+  "القاهرة", "الجيزة", "الإسكندرية", "الدقهلية", "البحر الأحمر", "البحيرة", "الفيوم", "الغربية",
+  "الإسماعيلية", "المنوفية", "المنيا", "القليوبية", "الوادي الجديد", "السويس", "أسوان", "أسيوط",
+  "بني سويف", "بورسعيد", "دمياط", "الشرقية", "جنوب سيناء", "كفر الشيخ", "مطروح", "الأقصر",
+  "قنا", "شمال سيناء", "سوهاج",
+];
+
 export const Route = createFileRoute("/cart")({
   loader: () => getStorefront(),
   component: CartPage,
@@ -22,14 +29,15 @@ function CartPage() {
   const total = cartTotal(items);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [governorate, setGovernorate] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function checkout() {
     if (!items.length) return;
-    if (name.trim().length < 2 || phone.trim().length < 8) {
-      toast.error("اكتبي الاسم ورقم الموبايل");
+    if (name.trim().length < 2 || phone.trim().length < 8 || !governorate || !address.trim()) {
+      toast.error("اكتبي الاسم والموبايل والمحافظة والعنوان");
       return;
     }
     setBusy(true);
@@ -38,7 +46,7 @@ function CartPage() {
         data: {
           customer_name: name.trim(),
           phone: phone.trim(),
-          address: address.trim(),
+          address: `${governorate} — ${address.trim()}`,
           notes: notes.trim(),
           items: items.map((i) => ({
             productId: i.productId,
@@ -50,7 +58,7 @@ function CartPage() {
         },
       });
       const lines = items.map((i) => `• ${i.name} × ${i.qty} = ${i.price * i.qty} ج.م`).join("\n");
-      const text = `طلب جديد من موقع Puffs\n${name}\n${phone}\n${address}\n\n${lines}\n\nالإجمالي: ${result.total} ج.م\n${notes}`;
+      const text = `طلب جديد من موقع Puffs\nالاسم: ${name}\nالموبايل: ${phone}\nالمحافظة: ${governorate}\nالعنوان: ${address}\n\n${lines}\n\nالإجمالي: ${result.total} ج.م${notes ? `\nملاحظات: ${notes}` : ""}`;
       clear();
       toast.success("تم تسجيل الطلب");
       window.open(waLink(settings.whatsapp, text), "_blank");
@@ -116,8 +124,20 @@ function CartPage() {
                   <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
                 </div>
                 <div>
-                  <Label htmlFor="address">العنوان</Label>
-                  <Input id="address" value={address} onChange={(e) => setAddress(e.target.value)} />
+                  <Label htmlFor="governorate">المحافظة</Label>
+                  <select
+                    id="governorate"
+                    value={governorate}
+                    onChange={(e) => setGovernorate(e.target.value)}
+                    className="h-11 w-full rounded-[var(--radius-sm)] border border-border bg-bg-elevated px-3 text-sm text-fg outline-none focus:border-primary"
+                  >
+                    <option value="" disabled>اختاري المحافظة</option>
+                    {EGYPT_GOVERNORATES.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="address">العنوان بالتفصيل</Label>
+                  <Input id="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="المنطقة، الشارع، رقم العقار" />
                 </div>
                 <div>
                   <Label htmlFor="notes">ملاحظات</Label>

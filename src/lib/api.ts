@@ -124,7 +124,14 @@ async function getSupabaseStorefront(): Promise<Storefront | null> {
     if (!products.length && !banners.length && !categories.length) return null;
     const map = asSettings(settings);
     delete map.supabase_key;
-    return { settings: map, banners, categories, products };
+    // A partially seeded Supabase project must never make the shop look empty.
+    // Keep the live records when present and fill only missing collections.
+    return {
+      settings: map,
+      banners: banners.length ? banners : DEFAULT_BANNERS,
+      categories: categories.length ? categories : DEFAULT_CATEGORIES,
+      products: products.length ? products : DEFAULT_PRODUCTS,
+    };
   } catch {
     return null;
   }

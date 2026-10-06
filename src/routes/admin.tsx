@@ -138,6 +138,11 @@ function AdminPage({ onLogout }: { onLogout?: () => void }) {
         </div>
       </header>
       <div className="mx-auto max-w-6xl px-4 py-6">
+        <section className="mb-6 grid gap-3 sm:grid-cols-3">
+          <AdminMetric label="إجمالي المنتجات" value={q.data.products.length} />
+          <AdminMetric label="الطلبات الجديدة" value={q.data.orders.filter((order) => order.status === "new").length} emphasis />
+          <AdminMetric label="الأقسام المتاحة" value={q.data.categories.length} />
+        </section>
         <div className="flex gap-2 overflow-x-auto pb-4">
           {(
             [
@@ -167,6 +172,15 @@ function AdminPage({ onLogout }: { onLogout?: () => void }) {
         {tab === "orders" ? <OrdersTab orders={q.data.orders} onDone={refresh} /> : null}
         {tab === "settings" ? <SettingsTab settings={q.data.settings} onDone={refresh} /> : null}
       </div>
+    </div>
+  );
+}
+
+function AdminMetric({ label, value, emphasis = false }: { label: string; value: number; emphasis?: boolean }) {
+  return (
+    <div className={cn("rounded-[var(--radius-lg)] border p-4 shadow-soft", emphasis ? "border-primary/30 bg-primary/10" : "border-border bg-bg-elevated")}>
+      <p className="text-sm text-muted">{label}</p>
+      <p className="mt-1 text-3xl font-semibold tabular-nums">{value}</p>
     </div>
   );
 }
@@ -238,6 +252,7 @@ function ProductsTab({
           <h1 className="font-display text-3xl">المنتجات</h1>
           <Button onClick={() => setEditing({ ...empty })}>منتج جديد</Button>
         </div>
+        {!products.length ? <div className="rounded-[var(--radius-lg)] border border-dashed border-border bg-bg-elevated p-8 text-center text-muted">لا توجد منتجات ظاهرة حالياً. أضيفي منتجاً جديداً أو راجعي اتصال التخزين.</div> : null}
         {products.map((p) => (
           <div key={p.id} className="flex gap-3 rounded-[var(--radius-md)] bg-bg-elevated p-3 ring-1 ring-border">
             <img src={p.image_url} alt="" className="size-16 rounded-[var(--radius-sm)] object-cover" />
