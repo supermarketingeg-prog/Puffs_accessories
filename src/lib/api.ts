@@ -21,19 +21,6 @@ function asSettings(rows: { key: string; value: string }[]): SettingsMap {
   return out;
 }
 
-async function requireAdmin(userId: string) {
-  const sql = await getSql();
-  const any = await sql<{ user_id: string }>`select user_id from store_admins limit 1`;
-  if (any.length === 0) {
-    await sql`insert into store_admins (user_id) values (${userId})`;
-    return;
-  }
-  const mine = await sql<{ user_id: string }>`select user_id from store_admins where user_id = ${userId}`;
-  if (mine.length === 0) {
-    throw Object.assign(new Error("Forbidden"), { status: 403 });
-  }
-}
-
 async function syncSupabase(table: string, rows: Record<string, unknown>[], conflictColumn = "id") {
   if (rows.length === 0) return;
   const { url, key } = await getSupabaseConfig();
@@ -172,16 +159,12 @@ export const getStorefront = createServerFn({ method: "GET" }).handler(async ():
 export const getProductBySlug = createServerFn({ method: "GET" })
   .validator(z.object({ slug: z.string() }))
   .handler(async ({ data }): Promise<Product | null> => {
-    try {
-      const sql = await getSql();
-      const rows = await sql<Product>`
-        select id, slug, name_ar, name_en, description_ar, description_en, category_id, price, compare_at, image_url, featured, in_stock, sort_order, created_at::text as created_at, updated_at::text as updated_at
-        from products where slug = ${data.slug} limit 1
-      `;
-      if (rows.length > 0) return rows[0];
-    } catch (error) {
-      throw error;
-    }
+    const sql = await getSql();
+    const rows = await sql<Product>`
+      select id, slug, name_ar, name_en, description_ar, description_en, category_id, price, compare_at, image_url, featured, in_stock, sort_order, created_at::text as created_at, updated_at::text as updated_at
+      from products where slug = ${data.slug} limit 1
+    `;
+    if (rows.length > 0) return rows[0];
     return DEFAULT_PRODUCTS.find((p) => p.slug === data.slug) ?? null;
   });
 
@@ -218,6 +201,7 @@ export const placeOrder = createServerFn({ method: "POST" })
 export const adminGetAll = createServerFn({ method: "GET" })
   .handler(async () => {
     requireAdminSession();
+    const synced = await getSupabaseStorefront();
     try {
       const sql = await getSql();
       const [settings, banners, categories, products, orders] = await Promise.all([
@@ -228,13 +212,14 @@ export const adminGetAll = createServerFn({ method: "GET" })
         sql<Order>`select id, customer_name, phone, address, notes, items_json, total, status, created_at::text as created_at from orders order by created_at desc limit 80`.catch(() => []),
       ]);
       return {
-        settings: asSettings(settings),
-        banners: banners.length > 0 ? banners : DEFAULT_BANNERS,
-        categories: categories.length > 0 ? categories : DEFAULT_CATEGORIES,
-        products: products.length > 0 ? products : DEFAULT_PRODUCTS,
+        settings: synced?.settings ?? asSettings(settings),
+        banners: synced?.banners ?? (banners.length > 0 ? banners : DEFAULT_BANNERS),
+        categories: synced?.categories ?? (categories.length > 0 ? categories : DEFAULT_CATEGORIES),
+        products: synced?.products ?? (products.length > 0 ? products : DEFAULT_PRODUCTS),
         orders,
       };
     } catch {
+      if (synced) return { ...synced, orders: [] };
       return {
         settings: DEFAULT_SETTINGS,
         banners: DEFAULT_BANNERS,
@@ -333,9 +318,9 @@ export const deleteProduct = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAdminSession();
     const sql = await getSql();
-    const previous = await sql<{ image_url: string }>`select image_url from products where id = ${data.id}`;
-    await sql`delete from products where id = ${data.id}`;
+    const previous = await sql<{ image_url: string }>`select image_url from products where id = ${data.id}`.catch(() => []);
     await deleteSupabase("products", data.id);
+    await sql`delete from products where id = ${data.id}`.catch(() => []);
     if (previous[0]?.image_url) await deleteSupabaseAsset(previous[0].image_url);
     return { ok: true };
   });
@@ -386,9 +371,9 @@ export const deleteBanner = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAdminSession();
     const sql = await getSql();
-    const previous = await sql<{ image_url: string }>`select image_url from banners where id = ${data.id}`;
-    await sql`delete from banners where id = ${data.id}`;
+    const previous = await sql<{ image_url: string }>`select image_url from banners where id = ${data.id}`.catch(() => []);
     await deleteSupabase("banners", data.id);
+    await sql`delete from banners where id = ${data.id}`.catch(() => []);
     if (previous[0]?.image_url) await deleteSupabaseAsset(previous[0].image_url);
     return { ok: true };
   });

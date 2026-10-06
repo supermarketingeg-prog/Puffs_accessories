@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { getCookie, setCookie } from "@tanstack/react-start/server";
+import { getCookie, getResponseHeaders } from "@tanstack/react-start/server";
 
 const COOKIE_NAME = "puffs_admin_session";
 const SESSION_SECONDS = 60 * 60 * 12;
@@ -29,6 +29,22 @@ function readSession() {
   return matches(sentSignature, signature(expiresAt));
 }
 
+function writeSessionCookie(value: string, maxAge: number) {
+  const attributes = [
+    `${COOKIE_NAME}=${value}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${maxAge}`,
+  ];
+
+  if (process.env.NODE_ENV === "production") attributes.push("Secure");
+
+  // Server functions return their own response. Adding the header here makes
+  // the session survive the login request in Vercel as well as locally.
+  getResponseHeaders().append("set-cookie", attributes.join("; "));
+}
+
 export function requireAdminSession() {
   if (!readSession()) throw Object.assign(new Error("Unauthorized"), { status: 401 });
 }
@@ -38,21 +54,9 @@ export function startAdminSession(password: string) {
     throw Object.assign(new Error("كلمة السر غير صحيحة"), { status: 401 });
   }
   const expiresAt = String(Date.now() + SESSION_SECONDS * 1000);
-  setCookie(COOKIE_NAME, `${expiresAt}.${signature(expiresAt)}`, {
-    path: "/",
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: SESSION_SECONDS,
-  });
+  writeSessionCookie(`${expiresAt}.${signature(expiresAt)}`, SESSION_SECONDS);
 }
 
 export function endAdminSession() {
-  setCookie(COOKIE_NAME, "", {
-    path: "/",
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 0,
-  });
+  writeSessionCookie("", 0);
 }

@@ -224,8 +224,8 @@ function ProductsTab({
       toast.success("تم حفظ المنتج");
       setEditing(null);
       onDone();
-    } catch {
-      toast.error("تعذر الحفظ");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر الحفظ");
     } finally {
       setBusy(false);
     }
@@ -254,8 +254,13 @@ function ProductsTab({
                 variant="ghost"
                 onClick={async () => {
                   if (!confirm("تحذف المنتج؟")) return;
-                  await deleteProduct({ data: { id: p.id } });
-                  onDone();
+                  try {
+                    await deleteProduct({ data: { id: p.id } });
+                    toast.success("تم حذف المنتج");
+                    onDone();
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "تعذر الحذف");
+                  }
                 }}
               >
                 حذف
@@ -353,20 +358,24 @@ function BannersTab({ banners, onDone }: { banners: Banner[]; onDone: () => void
   const [editing, setEditing] = useState<Partial<Banner> | null>(null);
   async function save() {
     if (!editing?.image_url) return;
-    await saveBanner({
-      data: {
-        id: editing.id,
-        title: editing.title || "",
-        subtitle: editing.subtitle || "",
-        image_url: editing.image_url,
-        link_url: editing.link_url || "/shop",
-        sort_order: Number(editing.sort_order) || 0,
-        active: editing.active !== false,
-      },
-    });
-    toast.success("تم حفظ البانر");
-    setEditing(null);
-    onDone();
+    try {
+      await saveBanner({
+        data: {
+          id: editing.id,
+          title: editing.title || "",
+          subtitle: editing.subtitle || "",
+          image_url: editing.image_url,
+          link_url: editing.link_url || "/shop",
+          sort_order: Number(editing.sort_order) || 0,
+          active: editing.active !== false,
+        },
+      });
+      toast.success("تم حفظ البانر");
+      setEditing(null);
+      onDone();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر حفظ البانر");
+    }
   }
   return (
     <div className="space-y-4">
@@ -425,9 +434,14 @@ function BannersTab({ banners, onDone }: { banners: Banner[]; onDone: () => void
                 type="button"
                 variant="danger"
                 onClick={async () => {
-                  await deleteBanner({ data: { id: editing.id! } });
-                  setEditing(null);
-                  onDone();
+                  try {
+                    await deleteBanner({ data: { id: editing.id! } });
+                    toast.success("تم حذف البانر");
+                    setEditing(null);
+                    onDone();
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "تعذر الحذف");
+                  }
                 }}
               >
                 حذف
@@ -520,9 +534,13 @@ function SettingsTab({ settings, onDone }: { settings: SettingsMap; onDone: () =
       className="mx-auto max-w-2xl space-y-4"
       onSubmit={async (e) => {
         e.preventDefault();
-        await saveSettings({ data: form });
-        toast.success("اتحفظت الإعدادات واتزامنت");
-        onDone();
+        try {
+          await saveSettings({ data: form });
+          toast.success("اتحفظت الإعدادات واتزامنت");
+          onDone();
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "تعذر حفظ الإعدادات");
+        }
       }}
     >
       <h1 className="font-display text-3xl">إعدادات الموقع</h1>
