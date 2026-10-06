@@ -48,7 +48,13 @@ const DEFAULT_SUPABASE_URL = "https://qmummabspnyylopokaoh.supabase.co";
 const STORAGE_BUCKET = "puffs-assets";
 
 function supabaseHeaders(key: string, extra: Record<string, string> = {}) {
-  return { apikey: key, Authorization: `Bearer ${key}`, ...extra };
+  // Current Supabase secret keys (sb_secret_...) are opaque strings, not JWTs.
+  // Passing one as a Bearer token makes Storage try to parse it as a JWS and
+  // reject it with "Invalid Compact JWS". Legacy service_role keys are JWTs
+  // and continue to need the Authorization header.
+  return key.startsWith("sb_secret_")
+    ? { apikey: key, ...extra }
+    : { apikey: key, Authorization: `Bearer ${key}`, ...extra };
 }
 
 async function getSupabaseConfig() {
