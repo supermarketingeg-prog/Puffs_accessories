@@ -143,13 +143,21 @@ export function WhatsappFloat({ settings }: { settings: SettingsMap }) {
   );
 }
 
-export function PublicShell({ settings, children }: { settings: SettingsMap; children: ReactNode }) {
+export function PublicShell({
+  settings,
+  children,
+  showWhatsapp = true,
+}: {
+  settings: SettingsMap;
+  children: ReactNode;
+  showWhatsapp?: boolean;
+}) {
   return (
     <div className="min-h-svh bg-bg text-fg">
       <SiteHeader settings={settings} />
       <main>{children}</main>
       <SiteFooter settings={settings} />
-      <WhatsappFloat settings={settings} />
+      {showWhatsapp ? <WhatsappFloat settings={settings} /> : null}
     </div>
   );
 }

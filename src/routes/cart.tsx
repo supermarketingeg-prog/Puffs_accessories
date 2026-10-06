@@ -41,8 +41,13 @@ function CartPage() {
       return;
     }
     setBusy(true);
+    const lines = items.map((i) => `• ${i.name} × ${i.qty} = ${i.price * i.qty} ج.م`).join("\n");
+    const text = `طلب جديد من موقع Puffs\nالاسم: ${name}\nالموبايل: ${phone}\nالمحافظة: ${governorate}\nالعنوان: ${address}\n\n${lines}\n\nالإجمالي: ${total} ج.م${notes ? `\nملاحظات: ${notes}` : ""}`;
+    // Open WhatsApp inside the click event so mobile browsers do not block it.
+    // Saving the order is useful for the dashboard, but must not prevent a sale.
+    window.open(waLink(settings.whatsapp, text), "_blank", "noopener,noreferrer");
     try {
-      const result = await placeOrder({
+      await placeOrder({
         data: {
           customer_name: name.trim(),
           phone: phone.trim(),
@@ -57,20 +62,18 @@ function CartPage() {
           })),
         },
       });
-      const lines = items.map((i) => `• ${i.name} × ${i.qty} = ${i.price * i.qty} ج.م`).join("\n");
-      const text = `طلب جديد من موقع Puffs\nالاسم: ${name}\nالموبايل: ${phone}\nالمحافظة: ${governorate}\nالعنوان: ${address}\n\n${lines}\n\nالإجمالي: ${result.total} ج.م${notes ? `\nملاحظات: ${notes}` : ""}`;
       clear();
-      toast.success("تم تسجيل الطلب");
-      window.open(waLink(settings.whatsapp, text), "_blank");
+      toast.success("تم إرسال الطلب إلى واتساب وتسجيله في لوحة التحكم");
     } catch {
-      toast.error("حصل خطأ، جرّبي تاني أو ابعتي واتساب مباشرة");
+      clear();
+      toast.message("تم إرسال الطلب إلى واتساب. تعذر حفظ نسخة منه في لوحة التحكم.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <PublicShell settings={settings}>
+    <PublicShell settings={settings} showWhatsapp={false}>
       <div className="mx-auto max-w-6xl px-4 py-12">
         <h1 className="font-display text-5xl">السلة</h1>
         {items.length === 0 ? (
