@@ -24,7 +24,7 @@ function asSettings(rows: { key: string; value: string }[]): SettingsMap {
 async function syncSupabase(table: string, rows: Record<string, unknown>[], conflictColumn = "id") {
   if (rows.length === 0) return;
   const { url, key } = await getSupabaseConfig();
-  const response = await fetch(`${url}/rest/v1/${table}?on_conflict=${conflictColumn}`, {
+  const response = await supabaseFetch(`${url}/rest/v1/${table}?on_conflict=${conflictColumn}`, {
     method: "POST",
     headers: supabaseHeaders(key, {
       "Content-Type": "application/json",
@@ -37,7 +37,7 @@ async function syncSupabase(table: string, rows: Record<string, unknown>[], conf
 
 async function deleteSupabase(table: string, id: number) {
   const { url, key } = await getSupabaseConfig();
-  const response = await fetch(`${url}/rest/v1/${table}?id=eq.${id}`, {
+  const response = await supabaseFetch(`${url}/rest/v1/${table}?id=eq.${id}`, {
     method: "DELETE",
     headers: supabaseHeaders(key, { Prefer: "return=minimal" }),
   });
@@ -52,32 +52,27 @@ function supabaseHeaders(key: string, extra: Record<string, string> = {}) {
 }
 
 async function getSupabaseConfig() {
-  const url = (process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/+$/, "");
+  // This app is intentionally bound to the Puffs project. It prevents a
+  // mistyped Vercel SUPABASE_URL from sending requests to a dashboard URL or
+  // another project and failing with the opaque "fetch failed" message.
+  const url = DEFAULT_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) throw new Error("Supabase غير مُعدّ. أضيفي SUPABASE_SERVICE_ROLE_KEY في إعدادات Vercel.");
   return { url, key };
+}
+
+async function supabaseFetch(input: string, init?: RequestInit) {
+  try {
+    return await fetch(input, init);
+  } catch {
+    throw new Error("تعذر الاتصال بـ Supabase. راجعي أن SUPABASE_SERVICE_ROLE_KEY موجودة ثم أعيدي النشر.");
+  }
 }
 
 async function assertSupabaseResponse(response: Response, action: string) {
   if (response.ok) return;
   const details = (await response.text()).slice(0, 300);
   throw new Error(`تعذر ${action} في Supabase (${response.status})${details ? `: ${details}` : ""}`);
-}
-
-function assetPath(url: string, projectUrl: string) {
-  const prefix = `${projectUrl}/storage/v1/object/public/${STORAGE_BUCKET}/`;
-  return url.startsWith(prefix) ? url.slice(prefix.length) : null;
-}
-
-async function deleteSupabaseAsset(url: string) {
-  const config = await getSupabaseConfig();
-  const path = assetPath(url, config.url);
-  if (!path) return;
-  const response = await fetch(`${config.url}/storage/v1/object/${STORAGE_BUCKET}/${path}`, {
-    method: "DELETE",
-    headers: supabaseHeaders(config.key),
-  });
-  await assertSupabaseResponse(response, "حذف الصورة");
 }
 
 export const uploadImage = createServerFn({ method: "POST" })
@@ -92,7 +87,7 @@ export const uploadImage = createServerFn({ method: "POST" })
     const config = await getSupabaseConfig();
     const extension = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
     const path = `${data.folder}/${crypto.randomUUID()}.${extension}`;
-    const response = await fetch(`${config.url}/storage/v1/object/${STORAGE_BUCKET}/${path}`, {
+    const response = await supabaseFetch(`${config.url}/storage/v1/object/${STORAGE_BUCKET}/${path}`, {
       method: "POST",
       headers: supabaseHeaders(config.key, { "Content-Type": contentType, "x-upsert": "false" }),
       body: bytes,
@@ -106,10 +101,10 @@ async function getSupabaseStorefront(): Promise<Storefront | null> {
     const { url, key } = await getSupabaseConfig();
     const headers = supabaseHeaders(key);
     const [settingsResponse, bannersResponse, categoriesResponse, productsResponse] = await Promise.all([
-      fetch(`${url}/rest/v1/site_settings?select=key,value`, { headers }),
-      fetch(`${url}/rest/v1/banners?active=eq.true&order=sort_order.asc,id.asc&select=*`, { headers }),
-      fetch(`${url}/rest/v1/categories?active=eq.true&order=sort_order.asc,id.asc&select=*`, { headers }),
-      fetch(`${url}/rest/v1/products?order=sort_order.asc,id.asc&select=*`, { headers }),
+      supabaseFetch(`${url}/rest/v1/site_settings?select=key,value`, { headers }),
+      supabaseFetch(`${url}/rest/v1/banners?active=eq.true&order=sort_order.asc,id.asc&select=*`, { headers }),
+      supabaseFetch(`${url}/rest/v1/categories?active=eq.true&order=sort_order.asc,id.asc&select=*`, { headers }),
+      supabaseFetch(`${url}/rest/v1/products?order=sort_order.asc,id.asc&select=*`, { headers }),
     ]);
     if (![settingsResponse, bannersResponse, categoriesResponse, productsResponse].every((response) => response.ok)) return null;
     const [settings, banners, categories, products] = await Promise.all([
@@ -159,12 +154,18 @@ export const getStorefront = createServerFn({ method: "GET" }).handler(async ():
 export const getProductBySlug = createServerFn({ method: "GET" })
   .validator(z.object({ slug: z.string() }))
   .handler(async ({ data }): Promise<Product | null> => {
-    const sql = await getSql();
-    const rows = await sql<Product>`
-      select id, slug, name_ar, name_en, description_ar, description_en, category_id, price, compare_at, image_url, featured, in_stock, sort_order, created_at::text as created_at, updated_at::text as updated_at
-      from products where slug = ${data.slug} limit 1
-    `;
-    if (rows.length > 0) return rows[0];
+    try {
+      const { url, key } = await getSupabaseConfig();
+      const response = await supabaseFetch(`${url}/rest/v1/products?slug=eq.${encodeURIComponent(data.slug)}&select=*&limit=1`, {
+        headers: supabaseHeaders(key),
+      });
+      if (response.ok) {
+        const rows = (await response.json()) as Product[];
+        if (rows.length > 0) return rows[0];
+      }
+    } catch {
+      // The shop can still show its built-in catalog if Supabase is unavailable.
+    }
     return DEFAULT_PRODUCTS.find((p) => p.slug === data.slug) ?? null;
   });
 
@@ -247,14 +248,9 @@ export const saveSettings = createServerFn({ method: "POST" })
   .validator(z.record(z.string(), z.string()))
   .handler(async ({ data }) => {
     requireAdminSession();
-    const sql = await getSql();
     const rows: { key: string; value: string }[] = [];
     for (const [key, value] of Object.entries(data)) {
       if (!/^[a-z_]+$/.test(key)) continue;
-      await sql`
-        insert into site_settings (key, value) values (${key}, ${value})
-        on conflict (key) do update set value = excluded.value
-      `;
       rows.push({ key, value });
     }
     await syncSupabase("site_settings", rows, "key");
@@ -282,46 +278,16 @@ export const saveProduct = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAdminSession();
     const slug = data.slug.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-    let id = data.id;
-    const sql = await getSql();
-    const previous = id
-      ? await sql<{ image_url: string }>`select image_url from products where id = ${id}`
-      : [];
-    if (id) {
-      await sql`
-          update products set
-            slug = ${slug}, name_ar = ${data.name_ar}, name_en = ${data.name_en},
-            description_ar = ${data.description_ar}, description_en = ${data.description_en},
-            category_id = ${data.category_id}, price = ${data.price}, compare_at = ${data.compare_at},
-            image_url = ${data.image_url}, featured = ${data.featured}, in_stock = ${data.in_stock},
-            sort_order = ${data.sort_order}, updated_at = now()
-          where id = ${id}
-      `;
-    } else {
-      const rows = await sql<{ id: number }>`
-          insert into products (slug, name_ar, name_en, description_ar, description_en, category_id, price, compare_at, image_url, featured, in_stock, sort_order)
-          values (${slug}, ${data.name_ar}, ${data.name_en}, ${data.description_ar}, ${data.description_en}, ${data.category_id}, ${data.price}, ${data.compare_at}, ${data.image_url}, ${data.featured}, ${data.in_stock}, ${data.sort_order})
-          returning id
-      `;
-      id = rows[0]?.id;
-    }
-    if (!id) throw new Error("تعذر إنشاء المنتج");
+    const id = data.id ?? Date.now();
     await syncSupabase("products", [{ ...data, slug, id }]);
-    if (previous[0]?.image_url && previous[0].image_url !== data.image_url) {
-      await deleteSupabaseAsset(previous[0].image_url);
-    }
-    return { id: id ?? 1 };
+    return { id };
   });
 
 export const deleteProduct = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.number() }))
   .handler(async ({ data }) => {
     requireAdminSession();
-    const sql = await getSql();
-    const previous = await sql<{ image_url: string }>`select image_url from products where id = ${data.id}`.catch(() => []);
     await deleteSupabase("products", data.id);
-    await sql`delete from products where id = ${data.id}`.catch(() => []);
-    if (previous[0]?.image_url) await deleteSupabaseAsset(previous[0].image_url);
     return { ok: true };
   });
 
@@ -339,42 +305,16 @@ export const saveBanner = createServerFn({ method: "POST" })
   .validator(bannerInput)
   .handler(async ({ data }) => {
     requireAdminSession();
-    let id = data.id;
-    const sql = await getSql();
-    const previous = id
-      ? await sql<{ image_url: string }>`select image_url from banners where id = ${id}`
-      : [];
-    if (id) {
-      await sql`
-          update banners set title = ${data.title}, subtitle = ${data.subtitle}, image_url = ${data.image_url},
-            link_url = ${data.link_url}, sort_order = ${data.sort_order}, active = ${data.active}
-          where id = ${id}
-      `;
-    } else {
-      const rows = await sql<{ id: number }>`
-        insert into banners (title, subtitle, image_url, link_url, sort_order, active)
-        values (${data.title}, ${data.subtitle}, ${data.image_url}, ${data.link_url}, ${data.sort_order}, ${data.active})
-        returning id
-      `;
-      id = rows[0]?.id;
-    }
-    if (!id) throw new Error("تعذر إنشاء البانر");
+    const id = data.id ?? Date.now();
     await syncSupabase("banners", [{ ...data, id }]);
-    if (previous[0]?.image_url && previous[0].image_url !== data.image_url) {
-      await deleteSupabaseAsset(previous[0].image_url);
-    }
-    return { id: id ?? 1 };
+    return { id };
   });
 
 export const deleteBanner = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.number() }))
   .handler(async ({ data }) => {
     requireAdminSession();
-    const sql = await getSql();
-    const previous = await sql<{ image_url: string }>`select image_url from banners where id = ${data.id}`.catch(() => []);
     await deleteSupabase("banners", data.id);
-    await sql`delete from banners where id = ${data.id}`.catch(() => []);
-    if (previous[0]?.image_url) await deleteSupabaseAsset(previous[0].image_url);
     return { ok: true };
   });
 
