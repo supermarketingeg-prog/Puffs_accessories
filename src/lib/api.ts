@@ -333,6 +333,41 @@ export const deleteProduct = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const categoryInput = z.object({
+  id: z.number().optional(),
+  slug: z.string().trim().min(2).max(80),
+  name_ar: z.string().trim().min(2).max(80),
+  name_en: z.string().trim().max(80).default(""),
+  image_url: z.string().min(1),
+  sort_order: z.number().int().default(0),
+  active: z.boolean(),
+});
+
+export const saveCategory = createServerFn({ method: "POST" })
+  .validator(categoryInput)
+  .handler(async ({ data }) => {
+    requireAdminSession();
+    const id = data.id ?? Date.now();
+    const slug = data.slug.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    await syncSupabase("categories", [{ ...data, id, slug }]);
+    return { id };
+  });
+
+export const deleteCategory = createServerFn({ method: "POST" })
+  .validator(z.object({ id: z.number() }))
+  .handler(async ({ data }) => {
+    requireAdminSession();
+    const { url, key } = await getSupabaseConfig();
+    const linked = await supabaseFetch(`${url}/rest/v1/products?category_id=eq.${data.id}&select=id&limit=1`, {
+      headers: supabaseHeaders(key),
+    });
+    if (linked.ok && (await linked.json() as unknown[]).length) {
+      throw new Error("لا يمكن حذف قسم مرتبط بمنتجات. انقلي المنتجات لقسم آخر أولاً.");
+    }
+    await deleteSupabase("categories", data.id);
+    return { ok: true };
+  });
+
 const bannerInput = z.object({
   id: z.number().optional(),
   title: z.string().max(80).default(""),

@@ -117,9 +117,6 @@ export function SiteFooter({ settings }: { settings: SettingsMap }) {
           <a className="block text-muted hover:text-fg" href={settings.facebook} target="_blank" rel="noreferrer">
             Facebook
           </a>
-          <Link to="/admin" className="block pt-4 text-xs text-subtle hover:text-muted">
-            لوحة التحكم
-          </Link>
         </div>
       </div>
       <p className="border-t border-border px-4 py-4 text-center text-xs text-subtle">

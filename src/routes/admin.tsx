@@ -11,8 +11,10 @@ import {
   adminLogin,
   adminLogout,
   deleteBanner,
+  deleteCategory,
   deleteProduct,
   saveBanner,
+  saveCategory,
   saveProduct,
   saveSettings,
   setOrderStatus,
@@ -22,7 +24,7 @@ import { cn, formatPrice } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin")({ component: AdminGate });
 
-type Tab = "products" | "banners" | "settings" | "orders";
+type Tab = "products" | "categories" | "banners" | "settings" | "orders";
 
 function AdminGate() {
   const qc = useQueryClient();
@@ -147,6 +149,7 @@ function AdminPage({ onLogout }: { onLogout?: () => void }) {
           {(
             [
               ["products", "المنتجات"],
+              ["categories", "الأقسام"],
               ["banners", "البانر"],
               ["orders", "الطلبات"],
               ["settings", "إعدادات الموقع"],
@@ -168,6 +171,7 @@ function AdminPage({ onLogout }: { onLogout?: () => void }) {
         {tab === "products" ? (
           <ProductsTab products={q.data.products} categories={q.data.categories} onDone={refresh} />
         ) : null}
+        {tab === "categories" ? <CategoriesTab categories={q.data.categories} onDone={refresh} /> : null}
         {tab === "banners" ? <BannersTab banners={q.data.banners} onDone={refresh} /> : null}
         {tab === "orders" ? <OrdersTab orders={q.data.orders} onDone={refresh} /> : null}
         {tab === "settings" ? <SettingsTab settings={q.data.settings} onDone={refresh} /> : null}
@@ -181,6 +185,87 @@ function AdminMetric({ label, value, emphasis = false }: { label: string; value:
     <div className={cn("rounded-[var(--radius-lg)] border p-4 shadow-soft", emphasis ? "border-primary/30 bg-primary/10" : "border-border bg-bg-elevated")}>
       <p className="text-sm text-muted">{label}</p>
       <p className="mt-1 text-3xl font-semibold tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function CategoriesTab({ categories, onDone }: { categories: Category[]; onDone: () => void }) {
+  const blank: Partial<Category> = {
+    name_ar: "",
+    name_en: "",
+    slug: "",
+    image_url: "/images/cat-sets.jpg",
+    sort_order: categories.length + 1,
+    active: true,
+  };
+  const [editing, setEditing] = useState<Partial<Category> | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (!editing?.name_ar || !editing.image_url) return;
+    setBusy(true);
+    try {
+      await saveCategory({
+        data: {
+          id: editing.id,
+          name_ar: editing.name_ar,
+          name_en: editing.name_en || "",
+          slug: editing.slug || `category-${Date.now()}`,
+          image_url: editing.image_url,
+          sort_order: Number(editing.sort_order) || 0,
+          active: editing.active !== false,
+        },
+      });
+      toast.success("تم حفظ القسم");
+      setEditing(null);
+      onDone();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر حفظ القسم");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="font-display text-3xl">الأقسام</h1>
+            <p className="mt-1 text-sm text-muted">نظّمي أقسام المتجر وأضيفي أقساماً جديدة.</p>
+          </div>
+          <Button onClick={() => setEditing({ ...blank })}>قسم جديد</Button>
+        </div>
+        {categories.map((category) => (
+          <div key={category.id} className="flex items-center gap-3 rounded-[var(--radius-md)] bg-bg-elevated p-3 ring-1 ring-border">
+            <img src={category.image_url} alt="" className="size-16 rounded-[var(--radius-sm)] object-cover" />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">{category.name_ar}</p>
+              <p className="truncate text-xs text-muted">{category.slug}</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setEditing(category)}>تعديل</Button>
+          </div>
+        ))}
+      </div>
+      {editing ? (
+        <form className="h-fit space-y-3 rounded-[var(--radius-lg)] bg-bg-elevated p-4 ring-1 ring-border" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+          <h2 className="font-medium">{editing.id ? "تعديل قسم" : "قسم جديد"}</h2>
+          <ImageField label="صورة القسم" value={editing.image_url || ""} onChange={(image_url) => setEditing({ ...editing, image_url })} />
+          <Field label="اسم القسم بالعربي"><Input value={editing.name_ar || ""} onChange={(e) => setEditing({ ...editing, name_ar: e.target.value })} /></Field>
+          <Field label="اسم القسم بالإنجليزي"><Input value={editing.name_en || ""} onChange={(e) => setEditing({ ...editing, name_en: e.target.value })} /></Field>
+          <Field label="رابط القسم (بالإنجليزي)"><Input value={editing.slug || ""} onChange={(e) => setEditing({ ...editing, slug: e.target.value })} /></Field>
+          <Field label="ترتيب الظهور"><Input type="number" value={editing.sort_order ?? 0} onChange={(e) => setEditing({ ...editing, sort_order: Number(e.target.value) })} /></Field>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editing.active !== false} onChange={(e) => setEditing({ ...editing, active: e.target.checked })} />ظاهر في المتجر</label>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={busy}>{busy ? "جاري الحفظ…" : "حفظ"}</Button>
+            {editing.id ? <Button type="button" variant="danger" onClick={async () => {
+              try { await deleteCategory({ data: { id: editing.id! } }); toast.success("تم حذف القسم"); setEditing(null); onDone(); }
+              catch (error) { toast.error(error instanceof Error ? error.message : "تعذر حذف القسم"); }
+            }}>حذف</Button> : null}
+            <Button type="button" variant="outline" onClick={() => setEditing(null)}>إلغاء</Button>
+          </div>
+        </form>
+      ) : null}
     </div>
   );
 }
