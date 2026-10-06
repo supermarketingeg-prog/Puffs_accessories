@@ -44,7 +44,7 @@ async function deleteSupabase(table: string, id: number) {
   await assertSupabaseResponse(response, `حذف ${table}`);
 }
 
-const DEFAULT_SUPABASE_URL = "https://qmummabspnyylopokaoh.supabase.co";
+const DEFAULT_SUPABASE_URL = "https://nttdxpsqpyokzqyihmcr.supabase.co";
 const STORAGE_BUCKET = "puffs-assets";
 
 function supabaseHeaders(key: string, extra: Record<string, string> = {}) {

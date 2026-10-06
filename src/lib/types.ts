@@ -84,7 +84,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   hero_subtitle: "الإكسسوارات هي اللي بتكمل اللوك",
   hero_image: "/images/hero.jpg",
   logo_url: "/images/emblem.jpg",
-  supabase_url: "https://qmummabspnyylopokaoh.supabase.co",
+  supabase_url: "https://nttdxpsqpyokzqyihmcr.supabase.co",
   supabase_key: "",
 };
 

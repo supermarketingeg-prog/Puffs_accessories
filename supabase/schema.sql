@@ -1,5 +1,5 @@
 -- Run this in the Puffs Supabase SQL editor:
--- https://qmummabspnyylopokaoh.supabase.co
+-- https://nttdxpsqpyokzqyihmcr.supabase.co
 -- The Vercel server synchronizes this catalog using a server-only key.
 
 create table if not exists categories (

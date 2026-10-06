@@ -8,7 +8,7 @@
 - إنستجرام: https://www.instagram.com/puffs_accessories
 - واتساب: +201284384076
 - GitHub: https://github.com/supermarketingeg-prog/Puffs_accessories
-- Supabase: https://qmummabspnyylopokaoh.supabase.co
+- Supabase: https://nttdxpsqpyokzqyihmcr.supabase.co
 
 ## للعميل
 

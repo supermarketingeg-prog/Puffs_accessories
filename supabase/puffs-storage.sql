@@ -1,4 +1,4 @@
--- Run once in Supabase SQL Editor for project qmummabspnyylopokaoh.
+-- Run once in Supabase SQL Editor for project nttdxpsqpyokzqyihmcr.
 -- The app writes through a protected Vercel function using its service-role key.
 
 insert into storage.buckets (id, name, public)
