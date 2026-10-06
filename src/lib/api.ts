@@ -137,6 +137,20 @@ async function getSupabaseStorefront(): Promise<Storefront | null> {
   }
 }
 
+async function getSupabaseOrders(): Promise<Order[] | null> {
+  try {
+    const { url, key } = await getSupabaseConfig();
+    const response = await supabaseFetch(
+      `${url}/rest/v1/orders?select=id,customer_name,phone,address,notes,items_json,total,status,created_at&order=created_at.desc&limit=80`,
+      { headers: supabaseHeaders(key) },
+    );
+    if (!response.ok) return null;
+    return (await response.json()) as Order[];
+  } catch {
+    return null;
+  }
+}
+
 export const getStorefront = createServerFn({ method: "GET" }).handler(async (): Promise<Storefront> => {
   const synced = await getSupabaseStorefront();
   if (synced) return synced;
@@ -203,21 +217,34 @@ export const placeOrder = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data }) => {
-    const sql = await getSql();
     const total = data.items.reduce((n, i) => n + i.price * i.qty, 0);
     const items_json = JSON.stringify(data.items);
-    const rows = await sql<{ id: number }>`
-      insert into orders (customer_name, phone, address, notes, items_json, total, status)
-      values (${data.customer_name}, ${data.phone}, ${data.address}, ${data.notes}, ${items_json}, ${total}, 'new')
-      returning id
-    `;
-    return { id: rows[0]?.id ?? 0, total };
+    const { url, key } = await getSupabaseConfig();
+    const response = await supabaseFetch(`${url}/rest/v1/orders`, {
+      method: "POST",
+      headers: supabaseHeaders(key, {
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      }),
+      body: JSON.stringify({
+        customer_name: data.customer_name,
+        phone: data.phone,
+        address: data.address,
+        notes: data.notes,
+        items_json,
+        total,
+        status: "new",
+      }),
+    });
+    await assertSupabaseResponse(response, "حفظ الطلب");
+    const [order] = (await response.json()) as Order[];
+    return { id: order?.id ?? 0, total };
   });
 
 export const adminGetAll = createServerFn({ method: "GET" })
   .handler(async () => {
     requireAdminSession();
-    const synced = await getSupabaseStorefront();
+    const [synced, syncedOrders] = await Promise.all([getSupabaseStorefront(), getSupabaseOrders()]);
     try {
       const sql = await getSql();
       const [settings, banners, categories, products, orders] = await Promise.all([
@@ -232,10 +259,10 @@ export const adminGetAll = createServerFn({ method: "GET" })
         banners: synced?.banners ?? (banners.length > 0 ? banners : DEFAULT_BANNERS),
         categories: synced?.categories ?? (categories.length > 0 ? categories : DEFAULT_CATEGORIES),
         products: synced?.products ?? (products.length > 0 ? products : DEFAULT_PRODUCTS),
-        orders,
+        orders: syncedOrders ?? orders,
       };
     } catch {
-      if (synced) return { ...synced, orders: [] };
+      if (synced) return { ...synced, orders: syncedOrders ?? [] };
       return {
         settings: DEFAULT_SETTINGS,
         banners: DEFAULT_BANNERS,
@@ -338,10 +365,15 @@ export const setOrderStatus = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAdminSession();
     try {
-      const sql = await getSql();
-      await sql`update orders set status = ${data.status} where id = ${data.id}`.catch(() => {});
+      const { url, key } = await getSupabaseConfig();
+      const response = await supabaseFetch(`${url}/rest/v1/orders?id=eq.${data.id}`, {
+        method: "PATCH",
+        headers: supabaseHeaders(key, { "Content-Type": "application/json", Prefer: "return=minimal" }),
+        body: JSON.stringify({ status: data.status }),
+      });
+      await assertSupabaseResponse(response, "تحديث حالة الطلب");
     } catch {
-      /* fallback */
+      throw new Error("تعذر تحديث حالة الطلب. تأكدي من اتصال Supabase.");
     }
     return { ok: true };
   });
