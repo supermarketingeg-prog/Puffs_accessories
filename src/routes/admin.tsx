@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import {
   adminGetAll,
+  adminLogin,
+  adminLogout,
   deleteBanner,
   deleteProduct,
   saveBanner,
@@ -15,8 +17,6 @@ import {
   saveSettings,
   setOrderStatus,
 } from "@/lib/api";
-import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import type { Banner, Category, Order, Product, SettingsMap } from "@/lib/types";
 import { cn, formatPrice } from "@/lib/utils";
 
@@ -25,23 +25,20 @@ export const Route = createFileRoute("/admin")({ component: AdminGate });
 type Tab = "products" | "banners" | "settings" | "orders";
 
 function AdminGate() {
-  const { user } = useCurrentUserState();
-  const [authed, setAuthed] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("puffs_admin_token") === "puffs_ok";
-    }
-    return false;
-  });
+  const qc = useQueryClient();
+  const [authed, setAuthed] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  if (user || authed) {
+  if (authed) {
     return (
       <AdminPage
         onLogout={() => {
-          localStorage.removeItem("puffs_admin_token");
-          setAuthed(false);
-          window.location.reload();
+          void adminLogout().finally(() => {
+            qc.removeQueries({ queryKey: ["admin"] });
+            setAuthed(false);
+          });
         }}
       />
     );
@@ -60,14 +57,17 @@ function AdminGate() {
 
         <form
           className="space-y-4"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            const pass = password.trim();
-            if (pass === "puffs2026" || pass === "admin" || pass === "puffs" || pass === "123456") {
-              localStorage.setItem("puffs_admin_token", "puffs_ok");
+            setBusy(true);
+            try {
+              await adminLogin({ data: { password } });
               setAuthed(true);
-            } else {
-              setError("كلمة السر غير صحيحة، جربي puffs2026");
+              setPassword("");
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "تعذر تسجيل الدخول");
+            } finally {
+              setBusy(false);
             }
           }}
         >
@@ -87,8 +87,8 @@ function AdminGate() {
             {error ? <p className="text-xs text-danger">{error}</p> : null}
           </div>
 
-          <Button type="submit" className="w-full h-11 text-base">
-            دخول للوحة التحكم
+          <Button type="submit" className="w-full h-11 text-base" disabled={busy}>
+            {busy ? "جاري الدخول…" : "دخول للوحة التحكم"}
           </Button>
 
           <div className="pt-2 text-center">
@@ -134,9 +134,7 @@ function AdminPage({ onLogout }: { onLogout?: () => void }) {
             <Button size="sm" variant="outline" onClick={onLogout}>
               خروج
             </Button>
-          ) : (
-            <UserButton />
-          )}
+          ) : null}
         </div>
       </header>
       <div className="mx-auto max-w-6xl px-4 py-6">
@@ -275,7 +273,7 @@ function ProductsTab({
           }}
         >
           <h2 className="font-medium">{editing.id ? "تعديل منتج" : "منتج جديد"}</h2>
-          <ImageField label="الصورة" value={editing.image_url || ""} onChange={(image_url) => setEditing({ ...editing, image_url })} />
+          <ImageField label="الصورة" folder="products" value={editing.image_url || ""} onChange={(image_url) => setEditing({ ...editing, image_url })} />
           <Field label="الاسم بالعربي">
             <Input value={editing.name_ar || ""} onChange={(e) => setEditing({ ...editing, name_ar: e.target.value })} />
           </Field>
@@ -402,7 +400,7 @@ function BannersTab({ banners, onDone }: { banners: Banner[]; onDone: () => void
             void save();
           }}
         >
-          <ImageField label="صورة البانر" value={editing.image_url || ""} onChange={(image_url) => setEditing({ ...editing, image_url })} />
+          <ImageField label="صورة البانر" folder="banners" value={editing.image_url || ""} onChange={(image_url) => setEditing({ ...editing, image_url })} />
           <Field label="العنوان">
             <Input value={editing.title || ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
           </Field>
@@ -514,8 +512,6 @@ function SettingsTab({ settings, onDone }: { settings: SettingsMap; onDone: () =
         ["hours", "المواعيد"],
         ["hero_title", "عنوان الهيرو"],
         ["hero_subtitle", "نص الهيرو"],
-        ["supabase_url", "رابط Supabase"],
-        ["supabase_key", "مفتاح Supabase anon"],
       ] as const,
     [],
   );
@@ -531,17 +527,17 @@ function SettingsTab({ settings, onDone }: { settings: SettingsMap; onDone: () =
     >
       <h1 className="font-display text-3xl">إعدادات الموقع</h1>
       <p className="text-sm text-muted">
-        أي تعديل هنا يظهر على الموقع فوراً. لو حطيتي مفتاح Supabase، المنتجات تتبعت كمان على لوحة Supabase.
+        أي تعديل هنا يظهر على الموقع فوراً ويتزامن مع Supabase. مفاتيح الربط محفوظة بأمان في Vercel وليست داخل اللوحة.
       </p>
-      <ImageField label="لوجو / إمبليم" value={form.logo_url || ""} onChange={(logo_url) => setForm({ ...form, logo_url })} />
-      <ImageField label="صورة الهيرو" value={form.hero_image || ""} onChange={(hero_image) => setForm({ ...form, hero_image })} />
+      <ImageField label="لوجو / إمبليم" folder="settings" value={form.logo_url || ""} onChange={(logo_url) => setForm({ ...form, logo_url })} />
+      <ImageField label="صورة الهيرو" folder="settings" value={form.hero_image || ""} onChange={(hero_image) => setForm({ ...form, hero_image })} />
       {fields.map(([key, label]) => (
         <Field key={key} label={label}>
           {key === "about_ar" ? (
             <Textarea value={form[key] || ""} onChange={(e) => setForm({ ...form, [key]: e.target.value })} />
           ) : (
             <Input
-              type={key === "supabase_key" ? "password" : "text"}
+              type="text"
               value={form[key] || ""}
               onChange={(e) => setForm({ ...form, [key]: e.target.value })}
             />

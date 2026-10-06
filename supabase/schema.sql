@@ -1,7 +1,6 @@
 -- Run this in the Puffs Supabase SQL editor:
--- https://nttdxpsqpyokzqyihmcr.supabase.co
--- Then paste the anon key in the website admin → إعدادات → مفتاح Supabase
--- so products and banners stay in sync.
+-- https://qmummabspnyylopokaoh.supabase.co
+-- The Vercel server synchronizes this catalog using a server-only key.
 
 create table if not exists categories (
   id bigint primary key,
@@ -53,6 +52,3 @@ drop policy if exists "write banners" on banners;
 create policy "public read categories" on categories for select using (true);
 create policy "public read products" on products for select using (true);
 create policy "public read banners" on banners for select using (true);
-create policy "write categories" on categories for all using (true) with check (true);
-create policy "write products" on products for all using (true) with check (true);
-create policy "write banners" on banners for all using (true) with check (true);
