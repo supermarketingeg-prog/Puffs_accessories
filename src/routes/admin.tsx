@@ -124,12 +124,12 @@ function AdminPage({ onLogout }: { onLogout?: () => void }) {
   };
   return (
     <div className="min-h-svh bg-bg">
-      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 bg-bg-elevated sticky top-0 z-30">
+      <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-3 border-b border-border bg-bg-elevated/95 px-4 py-2 backdrop-blur-md">
         <Link to="/">
           <Logo />
         </Link>
         <div className="flex items-center gap-3">
-          <Link to="/" className="text-xs text-muted hover:text-fg underline hidden sm:inline">
+          <Link to="/" className="hidden text-xs text-muted hover:text-fg underline sm:inline">
             معاينة المتجر ↗
           </Link>
           {onLogout ? (
@@ -139,13 +139,13 @@ function AdminPage({ onLogout }: { onLogout?: () => void }) {
           ) : null}
         </div>
       </header>
-      <div className="mx-auto max-w-6xl px-4 py-6">
-        <section className="mb-6 grid gap-3 sm:grid-cols-3">
+      <div className="mx-auto max-w-6xl px-4 py-4 sm:py-6">
+        <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <AdminMetric label="إجمالي المنتجات" value={q.data.products.length} />
           <AdminMetric label="الطلبات الجديدة" value={q.data.orders.filter((order) => order.status === "new").length} emphasis />
-          <AdminMetric label="الأقسام المتاحة" value={q.data.categories.length} />
+          <div className="col-span-2 sm:col-span-1"><AdminMetric label="الأقسام المتاحة" value={q.data.categories.length} /></div>
         </section>
-        <div className="flex gap-2 overflow-x-auto pb-4">
+        <div className="grid grid-cols-3 gap-2 pb-5 sm:flex sm:overflow-x-auto">
           {(
             [
               ["products", "المنتجات"],
@@ -160,7 +160,7 @@ function AdminPage({ onLogout }: { onLogout?: () => void }) {
               type="button"
               onClick={() => setTab(id)}
               className={cn(
-                "h-10 shrink-0 rounded-full px-4 text-sm",
+                "h-11 shrink-0 rounded-[var(--radius-sm)] px-2 text-center text-sm font-medium sm:rounded-full sm:px-4",
                 tab === id ? "bg-fg text-primary-fg" : "bg-surface",
               )}
             >
@@ -182,9 +182,9 @@ function AdminPage({ onLogout }: { onLogout?: () => void }) {
 
 function AdminMetric({ label, value, emphasis = false }: { label: string; value: number; emphasis?: boolean }) {
   return (
-    <div className={cn("rounded-[var(--radius-lg)] border p-4 shadow-soft", emphasis ? "border-primary/30 bg-primary/10" : "border-border bg-bg-elevated")}>
-      <p className="text-sm text-muted">{label}</p>
-      <p className="mt-1 text-3xl font-semibold tabular-nums">{value}</p>
+    <div className={cn("rounded-[var(--radius-md)] border p-3 shadow-soft sm:rounded-[var(--radius-lg)] sm:p-4", emphasis ? "border-primary/30 bg-primary/10" : "border-border bg-bg-elevated")}>
+      <p className="text-xs text-muted sm:text-sm">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums sm:text-3xl">{value}</p>
     </div>
   );
 }
@@ -234,7 +234,7 @@ function CategoriesTab({ categories, onDone }: { categories: Category[]; onDone:
             <h1 className="font-display text-3xl">الأقسام</h1>
             <p className="mt-1 text-sm text-muted">نظّمي أقسام المتجر وأضيفي أقساماً جديدة.</p>
           </div>
-          <Button onClick={() => setEditing({ ...blank })}>قسم جديد</Button>
+          <Button className="shrink-0" onClick={() => setEditing({ ...blank })}>قسم جديد</Button>
         </div>
         {categories.map((category) => (
           <div key={category.id} className="flex items-center gap-3 rounded-[var(--radius-md)] bg-bg-elevated p-3 ring-1 ring-border">
@@ -248,8 +248,8 @@ function CategoriesTab({ categories, onDone }: { categories: Category[]; onDone:
         ))}
       </div>
       {editing ? (
-        <form className="h-fit space-y-3 rounded-[var(--radius-lg)] bg-bg-elevated p-4 ring-1 ring-border" onSubmit={(e) => { e.preventDefault(); void save(); }}>
-          <h2 className="font-medium">{editing.id ? "تعديل قسم" : "قسم جديد"}</h2>
+        <form className="fixed inset-0 z-50 min-h-svh overflow-y-auto bg-bg p-4 pb-10 sm:p-6 lg:static lg:h-fit lg:overflow-visible lg:rounded-[var(--radius-lg)] lg:bg-bg-elevated lg:p-4 lg:ring-1 lg:ring-border" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+          <div className="sticky top-0 -mx-4 mb-5 flex items-center justify-between border-b border-border bg-bg px-4 py-3 lg:static lg:mx-0 lg:mb-0 lg:border-0 lg:bg-transparent lg:p-0"><h2 className="font-medium">{editing.id ? "تعديل قسم" : "قسم جديد"}</h2><Button type="button" size="sm" variant="outline" className="lg:hidden" onClick={() => setEditing(null)}>إغلاق</Button></div>
           <ImageField label="صورة القسم" value={editing.image_url || ""} onChange={(image_url) => setEditing({ ...editing, image_url })} />
           <Field label="اسم القسم بالعربي"><Input value={editing.name_ar || ""} onChange={(e) => setEditing({ ...editing, name_ar: e.target.value })} /></Field>
           <Field label="اسم القسم بالإنجليزي"><Input value={editing.name_en || ""} onChange={(e) => setEditing({ ...editing, name_en: e.target.value })} /></Field>
@@ -333,9 +333,9 @@ function ProductsTab({
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <h1 className="font-display text-3xl">المنتجات</h1>
-          <Button onClick={() => setEditing({ ...empty })}>منتج جديد</Button>
+          <Button className="shrink-0" onClick={() => setEditing({ ...empty })}>منتج جديد</Button>
         </div>
         {!products.length ? <div className="rounded-[var(--radius-lg)] border border-dashed border-border bg-bg-elevated p-8 text-center text-muted">لا توجد منتجات ظاهرة حالياً. أضيفي منتجاً جديداً أو راجعي اتصال التخزين.</div> : null}
         {products.map((p) => (
@@ -345,7 +345,7 @@ function ProductsTab({
               <p className="truncate font-medium">{p.name_ar}</p>
               <p className="text-sm text-primary tabular-nums">{formatPrice(p.price)}</p>
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex shrink-0 flex-col gap-1">
               <Button size="sm" variant="outline" onClick={() => setEditing(p)}>
                 تعديل
               </Button>
@@ -371,13 +371,13 @@ function ProductsTab({
       </div>
       {editing ? (
         <form
-          className="h-fit space-y-3 rounded-[var(--radius-lg)] bg-bg-elevated p-4 ring-1 ring-border"
+          className="fixed inset-0 z-50 min-h-svh overflow-y-auto bg-bg p-4 pb-10 sm:p-6 lg:static lg:h-fit lg:overflow-visible lg:rounded-[var(--radius-lg)] lg:bg-bg-elevated lg:p-4 lg:ring-1 lg:ring-border"
           onSubmit={(e) => {
             e.preventDefault();
             void save();
           }}
         >
-          <h2 className="font-medium">{editing.id ? "تعديل منتج" : "منتج جديد"}</h2>
+          <div className="sticky top-0 -mx-4 mb-5 flex items-center justify-between border-b border-border bg-bg px-4 py-3 lg:static lg:mx-0 lg:mb-0 lg:border-0 lg:bg-transparent lg:p-0"><h2 className="font-medium">{editing.id ? "تعديل منتج" : "منتج جديد"}</h2><Button type="button" size="sm" variant="outline" className="lg:hidden" onClick={() => setEditing(null)}>إغلاق</Button></div>
           <ImageField label="الصورة" folder="products" value={editing.image_url || ""} onChange={(image_url) => setEditing({ ...editing, image_url })} />
           <Field label="الاسم بالعربي">
             <Input value={editing.name_ar || ""} onChange={(e) => setEditing({ ...editing, name_ar: e.target.value })} />
@@ -479,9 +479,9 @@ function BannersTab({ banners, onDone }: { banners: Banner[]; onDone: () => void
   }
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="font-display text-3xl">البانر</h1>
-        <Button onClick={() => setEditing({ title: "", subtitle: "", image_url: "/images/hero.jpg", link_url: "/shop", active: true, sort_order: 0 })}>
+        <Button className="shrink-0" onClick={() => setEditing({ title: "", subtitle: "", image_url: "/images/hero.jpg", link_url: "/shop", active: true, sort_order: 0 })}>
           بانر جديد
         </Button>
       </div>
@@ -503,12 +503,13 @@ function BannersTab({ banners, onDone }: { banners: Banner[]; onDone: () => void
       </div>
       {editing ? (
         <form
-          className="space-y-3 rounded-[var(--radius-lg)] bg-bg-elevated p-4 ring-1 ring-border"
+          className="fixed inset-0 z-50 min-h-svh overflow-y-auto bg-bg p-4 pb-10 sm:p-6 lg:static lg:mt-6 lg:overflow-visible lg:rounded-[var(--radius-lg)] lg:bg-bg-elevated lg:p-4 lg:ring-1 lg:ring-border"
           onSubmit={(e) => {
             e.preventDefault();
             void save();
           }}
         >
+          <div className="sticky top-0 -mx-4 mb-5 flex items-center justify-between border-b border-border bg-bg px-4 py-3 lg:static lg:mx-0 lg:mb-0 lg:border-0 lg:bg-transparent lg:p-0"><h2 className="font-medium">{editing.id ? "تعديل بانر" : "بانر جديد"}</h2><Button type="button" size="sm" variant="outline" className="lg:hidden" onClick={() => setEditing(null)}>إغلاق</Button></div>
           <ImageField label="صورة البانر" folder="banners" value={editing.image_url || ""} onChange={(image_url) => setEditing({ ...editing, image_url })} />
           <Field label="العنوان">
             <Input value={editing.title || ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
@@ -558,7 +559,7 @@ function BannersTab({ banners, onDone }: { banners: Banner[]; onDone: () => void
 }
 
 function OrdersTab({ orders, onDone }: { orders: Order[]; onDone: () => void }) {
-  if (!orders.length) return <p className="text-muted">مفيش طلبات لسه.</p>;
+  if (!orders.length) return <p className="rounded-[var(--radius-lg)] bg-bg-elevated p-6 text-center text-muted ring-1 ring-border">مفيش طلبات لسه.</p>;
   return (
     <div className="space-y-3">
       <h1 className="font-display text-3xl">الطلبات</h1>
@@ -577,7 +578,7 @@ function OrdersTab({ orders, onDone }: { orders: Order[]; onDone: () => void }) 
                 <p className="text-sm text-muted">{o.phone}</p>
                 {o.address ? <p className="text-sm text-muted">{o.address}</p> : null}
               </div>
-              <p className="tabular-nums text-primary">{formatPrice(o.total)}</p>
+              <p className="w-full border-t border-border pt-3 text-lg font-medium tabular-nums text-primary sm:w-auto sm:border-0 sm:pt-0">{formatPrice(o.total)}</p>
             </div>
             <ul className="mt-3 text-sm text-muted">
               {items.map((i, idx) => (
@@ -586,11 +587,12 @@ function OrdersTab({ orders, onDone }: { orders: Order[]; onDone: () => void }) 
                 </li>
               ))}
             </ul>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-4 grid grid-cols-3 gap-2">
               {(["new", "done", "cancelled"] as const).map((st) => (
                 <Button
                   key={st}
                   size="sm"
+                  className="w-full"
                   variant={o.status === st ? "primary" : "outline"}
                   onClick={async () => {
                     await setOrderStatus({ data: { id: o.id, status: st } });
@@ -631,7 +633,7 @@ function SettingsTab({ settings, onDone }: { settings: SettingsMap; onDone: () =
   );
   return (
     <form
-      className="mx-auto max-w-2xl space-y-4"
+      className="mx-auto max-w-2xl space-y-4 rounded-[var(--radius-lg)] bg-bg-elevated p-4 ring-1 ring-border sm:p-6"
       onSubmit={async (e) => {
         e.preventDefault();
         try {
