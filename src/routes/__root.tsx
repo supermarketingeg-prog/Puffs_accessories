@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { useState } from "react";
 import { Toaster } from "sonner";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { AuthProvider } from "@/lib/auth/provider";
 import appCss from "../styles.css?url";
@@ -48,6 +49,7 @@ function RootDocument() {
             <Toaster position="top-center" richColors={false} />
           </AuthProvider>
         </QueryClientProvider>
+        <SpeedInsights />
         <Scripts />
       </body>
     </html>
